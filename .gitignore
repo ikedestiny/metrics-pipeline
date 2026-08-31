@@ -1,0 +1,12 @@
+# Binaries
+/bin/
+/dist/
+metrics-server
+
+# IDEs
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
