@@ -10,11 +10,13 @@ import (
 
 // Handler handles metrics ingestion HTTP requests
 type Handler struct {
-	// We will add our Go channel here in the next step for backpressure!
+	queue chan domain.MetricFrame
 }
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(queue chan domain.MetricFrame) *Handler {
+	return &Handler{
+		queue: queue,
+	}
 }
 
 func (h *Handler) HandleIngest(w http.ResponseWriter, r *http.Request) {
@@ -36,10 +38,17 @@ func (h *Handler) HandleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Placeholder: In the next step, we will dispatch this into a buffered channel
-	slog.Debug("metric validated successfully", "service", frame.Service, "metric", frame.Metric)
-
-	respondWithJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+	// Strategy A - Backpressure Check (Non-blocking select)
+	select {
+	case h.queue <- frame:
+		// Message successfully queued into the thread-safe channel buffer!
+		slog.Debug("metric queued successfully", "service", frame.Service)
+		respondWithJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+	default:
+		// The 10,000 capacity buffer channel is FULL. Reject the request immediately.
+		slog.Error("backpressure triggered: ingestion queue capacity reached")
+		respondWithError(w, http.StatusServiceUnavailable, "Ingestion queue full. Try again later.")
+	}
 }
 
 func respondWithError(w http.ResponseWriter, code int, message string) {

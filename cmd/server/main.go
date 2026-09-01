@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/ikedestiny/metrics-pipeline/internal/config"
+	"github.com/ikedestiny/metrics-pipeline/internal/domain"
 	"github.com/ikedestiny/metrics-pipeline/internal/ingestion"
 )
 
@@ -15,17 +16,14 @@ func main() {
 
 	cfg := config.Load()
 
-	ingestHandler := ingestion.NewHandler()
+	// 1. Initialize our bounded, thread-safe memory queue (shared infrastructure)
+	metricsQueue := make(chan domain.MetricFrame, cfg.QueueCapacity)
+
+	// 2. Pass the queue resource into our HTTP layer
+	ingestHandler := ingestion.NewHandler(metricsQueue)
 
 	mux := http.NewServeMux()
-	// Old syntax - works with Go 1.21 and earlier
-	mux.HandleFunc("/api/v1/metrics", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		ingestHandler.HandleIngest(w, r)
-	})
+	mux.HandleFunc("POST /api/v1/metrics", ingestHandler.HandleIngest)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
