@@ -3,19 +3,25 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
 	Port          string
 	WorkerCount   int
 	QueueCapacity int
+	KafkaBrokers  []string
+	KafkaTopic    string
 }
 
 func Load() *Config {
+	brokersRaw := getEnv("KAFKA_BROKERS", "localhost:9092")
 	return &Config{
 		Port:          getEnv("SERVER_PORT", "8080"),
-		WorkerCount:   getEnvAsInt("WORKER_COUNT", 4), // runtime.NumCPU() will be our default later
+		WorkerCount:   getEnvAsInt("WORKER_COUNT", 4),
 		QueueCapacity: getEnvAsInt("QUEUE_CAPACITY", 10000),
+		KafkaBrokers:  strings.Split(brokersRaw, ","),
+		KafkaTopic:    getEnv("KAFKA_TOPIC", "telemetry.metrics"),
 	}
 }
 
